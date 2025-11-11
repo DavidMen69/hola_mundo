@@ -1,160 +1,116 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:hola_mundo/src/ui/screens/pokemon_detail_screen.dart';
 import '../../providers/pokemon_list_notifier.dart';
+import 'pokemon_detail_screen.dart';
 
-class PokemonListScreen extends ConsumerStatefulWidget {
-  const PokemonListScreen({super.key});
-
-  @override
-  ConsumerState<PokemonListScreen> createState() => _PokemonListScreenState();
-}
-
-class _PokemonListScreenState extends ConsumerState<PokemonListScreen> {
-  final ScrollController _scrollController = ScrollController();
-  final TextEditingController _searchController = TextEditingController();
+class PokemonListScreen extends ConsumerWidget {
+  const PokemonListScreen({Key? key}) : super(key: key);
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      ref.read(pokemonListNotifierProvider.notifier).loadMore();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final asyncPokemons = ref.watch(pokemonListNotifierProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pokemonListAsync = ref.watch(pokemonListNotifierProvider);
+    final notifier = ref.read(pokemonListNotifierProvider.notifier);
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 180,
-            flexibleSpace: FlexibleSpaceBar(
-              title: const Text('Pokédex'),
-              background: Image.network(
-                'https://raw.githubusercontent.com/PokeAPI/media/master/logo/pokeapi_256.png',
-                fit: BoxFit.contain,
-                color: Colors.white,
-                colorBlendMode: BlendMode.modulate,
-              ),
-            ),
-            bottom: AppBar(
-              automaticallyImplyLeading: false,
-              title: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Buscar Pokémon...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      ref
-                          .read(pokemonListNotifierProvider.notifier)
-                          .refreshList();
-                    },
-                  ),
+      appBar: AppBar(
+        title: const Text(
+          'Pokédex',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.redAccent,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              onChanged: (query) => notifier.searchPokemon(query),
+              decoration: InputDecoration(
+                hintText: 'Buscar Pokémon...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
                 ),
-                onChanged: (value) {
-                  ref
-                      .read(pokemonListNotifierProvider.notifier)
-                      .searchPokemon(value);
-                },
               ),
             ),
           ),
-          asyncPokemons.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) =>
-                SliverFillRemaining(child: Center(child: Text('Error: $e'))),
-            data: (pokemons) => SliverPadding(
-              padding: const EdgeInsets.all(8),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.1,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                ),
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final pokemon = pokemons[index];
-                  final color = Colors.blueAccent;
+          Expanded(
+            child: pokemonListAsync.when(
+              data: (pokemons) {
+                if (pokemons.isEmpty) {
+                  return const Center(child: Text('No se encontraron Pokémon.'));
+                }
+                return GridView.builder(
+                  padding: const EdgeInsets.all(10),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: pokemons.length,
+                  itemBuilder: (context, index) {
+                    final p = pokemons[index];
+                    final id = p.id;
+                    final imageUrl =
+                        'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/$id.png';
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          transitionDuration: const Duration(milliseconds: 600),
-                          pageBuilder: (_, animation, __) => FadeTransition(
-                            opacity: animation,
-                            child: PokemonDetailScreen(nameOrId: pokemon.name),
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                PokemonDetailScreen(nameOrId: p.name),
                           ),
-                        ),
-                      );
-                    },
-                    child: Hero(
-                      tag: pokemon.name,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.8),
+                        );
+                      },
+                      child: Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withOpacity(0.4),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CachedNetworkImage(
-                              imageUrl:
-                                  'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.id}.png',
-                              height: 80,
-                              fit: BoxFit.contain,
+                            Hero(
+                              tag: 'pokemon_${p.name}',
+                              child: Image.network(
+                                imageUrl,
+                                height: 90,
+                                width: 90,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, _, __) => const Icon(
+                                  Icons.broken_image,
+                                  size: 70,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              pokemon.name.toUpperCase(),
+                              p.name[0].toUpperCase() + p.name.substring(1),
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  );
-                }, childCount: pokemons.length),
-              ),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
   }
 }

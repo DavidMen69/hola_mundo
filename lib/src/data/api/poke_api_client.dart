@@ -9,6 +9,7 @@ class PokeApiClient {
   PokeApiClient({http.Client? httpClient})
     : httpClient = httpClient ?? http.Client();
 
+
   Future<Map<String, dynamic>> _getJson(Uri uri) async {
     final res = await httpClient.get(uri);
     if (res.statusCode != 200) {
@@ -18,7 +19,7 @@ class PokeApiClient {
   }
 
   Future<List<PokemonListItem>> fetchPokemonPage({
-    int limit = 20,
+    int limit = 1000,
     int offset = 0,
   }) async {
     final uri = Uri.parse('$baseUrl/pokemon?limit=$limit&offset=$offset');
@@ -30,7 +31,7 @@ class PokeApiClient {
   }
 
   Future<Pokemon> fetchPokemonDetail(String nameOrId) async {
-    final uri = Uri.parse('$baseUrl/pokemon/$nameOrId');
+    final uri = Uri.parse('$baseUrl/pokemon/${nameOrId.toLowerCase()}');
     final json = await _getJson(uri);
     return Pokemon.fromJson(json);
   }

@@ -1,57 +1,45 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/pokemon_model.dart';
-import 'pokemon_providers.dart';
+import '../data/repositories/pokemon_repository_impl.dart';
 
+/// Notifier que maneja la lista completa de Pokémon y la búsqueda
 class PokemonListNotifier extends AsyncNotifier<List<PokemonListItem>> {
-  final int _limit = 20;
-  int _offset = 0;
-  bool _isLoading = false;
-  String _searchQuery = '';
+  List<PokemonListItem> _allPokemons = [];
 
   @override
   Future<List<PokemonListItem>> build() async {
-    final repo = ref.read(pokemonRepoProvider);
-    final pokemons = await repo.getPokemonPage(limit: _limit, offset: _offset);
-    _offset += _limit;
-    return pokemons;
+    final repository = ref.watch(pokemonRepositoryImplProvider);
+    _allPokemons = await repository.fetchAllPokemons();
+    return _allPokemons;
   }
 
-  Future<void> loadMore() async {
-    if (_isLoading || _searchQuery.isNotEmpty) return;
-    _isLoading = true;
 
-    try {
-      final repo = ref.read(pokemonRepoProvider);
-      final newPokemons = await repo.getPokemonPage(limit: _limit, offset: _offset);
-      final currentList = state.value ?? [];
-      _offset += _limit;
-      state = AsyncValue.data([...currentList, ...newPokemons]);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    } finally {
-      _isLoading = false;
-    }
-  }
 
-  void refreshList() {
-    _offset = 0;
-    ref.invalidateSelf();
-    _searchQuery = '';
-  }
+  /// 🔍 Búsqueda instantánea sin depender del scroll
   void searchPokemon(String query) {
-    _searchQuery = query.toLowerCase();
-    final allPokemons = state.value ?? [];
     if (query.isEmpty) {
-      refreshList();
+      state = AsyncData(_allPokemons);
     } else {
-      final filtered = allPokemons
-          .where((p) => p.name.toLowerCase().contains(_searchQuery))
+      final filtered = _allPokemons
+          .where((p) => p.name.toLowerCase().contains(query.toLowerCase()))
           .toList();
-      state = AsyncValue.data(filtered);
+      state = AsyncData(filtered);
     }
+  }
+
+  /// 🔄 Refrescar lista completa
+  Future<void> refreshList() async {
+    state = const AsyncLoading();
+    ref.invalidateSelf();
+  }
+
+  /// (Compatibilidad) — ya no usamos scroll infinito
+  void loadMore() {
+    // Nada aquí — toda la lista se carga de una vez
   }
 }
 
+/// Provider de Riverpod
 final pokemonListNotifierProvider =
     AsyncNotifierProvider<PokemonListNotifier, List<PokemonListItem>>(
   () => PokemonListNotifier(),
